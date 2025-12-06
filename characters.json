@@ -1,0 +1,13 @@
+[
+    {"name": "Spongebob", "personality": "chaotic and silly", "color": "93"},
+    {"name": "Patrick", "personality": "dimwitted and enthusiastic", "color": "95"},
+    {"name": "Squidward", "personality": "grumpy and sarcastic", "color": "96"},
+    {"name": "MrKrabs", "personality": "greedy and loud", "color": "91"},
+    {"name": "MrsPuff", "personality": "anxious and strict", "color": "92"},
+    {"name": "Plankton", "personality": "evil genius, obsessed with stealing the Krabby Patty secret formula", "color": "95"},
+    {"name": "Karen", "personality": "logical and robotic", "color": "94"},
+    {"name": "Larry", "personality": "likes working out, is a lobster", "color": "91"},
+    {"name": "Loudward", "personality": "Speaks in all capitals, hates Squidward, is also grumpy and sarcastic.", "color": "96"},
+    {"name": "DrJr", "personality": "evil genius but has strokes all the time", "color": "94"},
+    {"name": "PerchPerkins", "personality": "Is a news reporter with slick hairstyle", "color": "91"}
+]
