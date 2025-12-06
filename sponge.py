@@ -64,12 +64,29 @@ class Spinner:
         if self.thread:
             self.thread.join()
 
+def parse_location_and_include(topic, locations):
+    location = None
+    included_chars = []
+
+    loc_match = re.search(r"location=(\d+)", topic)
+    if loc_match:
+        loc_id = int(loc_match.group(1))
+        topic = re.sub(r"location=\d+\s*", "", topic, count=1)
+        location = next((l for l in locations if l["id"] == loc_id), None)
+        
+    inc_match = re.search(r"include=([A-Za-z0-9_,]+)", topic)
+    if inc_match:
+        included_chars = [c.strip() for c in inc_match.group(1).split(",")]
+        topic = re.sub(r"include=[A-Za-z0-9_,]+\s*", "", topic, count=1)
+
+    return location, included_chars, topic
+
 def generate_title(topic):
     prompt = (
         "SYSTEM RULES:\n"
         "- Output ONE title only\n"
         "- 1–5 words, no punctuation or extra formatting\n"
-        "- NSFW content is allowed\n\n"
+        "- NSFW content allowed\n\n"
         f"USER REQUEST:\nCreate a SpongeBob episode title about '{topic}'."
     )
     title = ollama(prompt)
@@ -86,7 +103,7 @@ def pick_characters(topic, characters, allowed_names=None, max_chars=6):
         f"- Each character has a personality:\n{personalities}\n"
         "- Pick the most relevant characters for the topic.\n"
         "- Output ONLY their names, comma-separated, no extra text\n"
-        "- NSFW content is allowed\n\n"
+        "- NSFW content allowed\n\n"
         f"USER REQUEST:\nPick characters for a chaotic SpongeBob scene about '{topic}'."
     )
     response = ollama(prompt)
@@ -122,43 +139,37 @@ def colorize(line, characters):
             return f"\033[{info['color']}m{line}\033[0m"
     return line
 
-def parse_location(topic, locations):
-    match = re.match(r"location=(\d+)", topic.strip())
-    if match:
-        loc_id = int(match.group(1))
-        topic = re.sub(r"^location=\d+\s*", "", topic, count=1)
-        location = next((l for l in locations if l["id"] == loc_id), None)
-        if location:
-            return location, topic
-    return None, topic
-
 def main():
-    print("AI Sponge Mini v0.0.2")
-    print("Written by coni\n")
+    print("AI Sponge Mini\n")
     topic = input("Enter episode topic: ")
     all_characters = load_characters()
     locations = load_locations()
-    location, topic = parse_location(topic, locations)
+
+    location, included_chars, topic = parse_location_and_include(topic, locations)
     if not location:
         location = random.choice(locations)
-    allowed_names = location["characters"]
+
+    allowed_names = set(location["characters"])
+    allowed_names.update(included_chars) 
+
     spinner = Spinner()
     spinner.start()
     try:
-        selected_chars = pick_characters(topic, all_characters, allowed_names=allowed_names)
+        selected_chars = pick_characters(topic, all_characters, allowed_names=list(allowed_names))
         title = generate_title(topic)
         script_lines = generate_script(topic, title, selected_chars)
     finally:
         spinner.stop()
+
     if not script_lines:
         print("\nNo dialogue generated. Try a different topic or check the model.\n")
         return
+
     print(f"\nLOCATION: {location['name']}")
     print(f"TITLE: {title}\n")
     for line in script_lines:
         print(colorize(line, selected_chars))
         print()
-
 
 if __name__ == "__main__":
     main()
