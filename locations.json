@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "name": "BikiniBottomStreet",
+    "characters": ["Spongebob", "Patrick", "Squidward", "Loudward", "MrKrabs", "Plankton"]
+  },
+  {
+    "id": 2,
+    "name": "KrustyKrab",
+    "characters": ["Spongebob", "Squidward", "MrKrabs", "Plankton"]
+  },
+  {
+    "id": 3,
+    "name": "NewsStudio",
+    "characters": ["Spongebob", "Patrick", "PerchPerkins"]
+  },
+  {
+    "id": 4,
+    "name": "ChumBucket",
+    "characters": ["Plankton", "Karen"]
+  },
+  {
+    "id": 5,
+    "name": "BoatingSchool",
+    "characters": ["MrsPuff", "Spongebob", "Squidward", "Patrick", "Loudward"]
+  }
+]
