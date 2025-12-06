@@ -64,22 +64,31 @@ class Spinner:
         if self.thread:
             self.thread.join()
 
-def parse_location_and_include(topic, locations):
+def parse_topic_parameters(topic, locations):
     location = None
     included_chars = []
+    min_lines = 10  # default
 
+    # Parse location=# at start
     loc_match = re.search(r"location=(\d+)", topic)
     if loc_match:
         loc_id = int(loc_match.group(1))
         topic = re.sub(r"location=\d+\s*", "", topic, count=1)
         location = next((l for l in locations if l["id"] == loc_id), None)
-        
+
+    # Parse include=Char1,Char2,... at start
     inc_match = re.search(r"include=([A-Za-z0-9_,]+)", topic)
     if inc_match:
         included_chars = [c.strip() for c in inc_match.group(1).split(",")]
         topic = re.sub(r"include=[A-Za-z0-9_,]+\s*", "", topic, count=1)
 
-    return location, included_chars, topic
+    # Parse lines=# at start
+    lines_match = re.search(r"lines=(\d+)", topic)
+    if lines_match:
+        min_lines = int(lines_match.group(1))
+        topic = re.sub(r"lines=\d+\s*", "", topic, count=1)
+
+    return location, included_chars, min_lines, topic
 
 def generate_title(topic):
     prompt = (
@@ -94,7 +103,7 @@ def generate_title(topic):
         title = "Chaotic SpongeBob Episode"
     return " ".join(title.split()[:5])
 
-def pick_characters(topic, characters, allowed_names=None, max_chars=6):
+def pick_characters(topic, characters, allowed_names=None, included_chars=None, max_chars=6):
     names_list = allowed_names or [c["name"] for c in characters]
     personalities = "\n".join([f"{c['name']}: {c['personality']}" for c in characters if c["name"] in names_list])
     prompt = (
@@ -103,13 +112,25 @@ def pick_characters(topic, characters, allowed_names=None, max_chars=6):
         f"- Each character has a personality:\n{personalities}\n"
         "- Pick the most relevant characters for the topic.\n"
         "- Output ONLY their names, comma-separated, no extra text\n"
-        "- NSFW content allowed\n\n"
-        f"USER REQUEST:\nPick characters for a chaotic SpongeBob scene about '{topic}'."
+        "- NSFW content allowed\n"
     )
+
+    if included_chars:
+        prompt += "- INCLUDE THESE CHARACTERS IN EVERY SCENE: " + ", ".join(included_chars) + "\n"
+
+    prompt += f"\nUSER REQUEST:\nPick characters for a chaotic SpongeBob scene about '{topic}'."
+
     response = ollama(prompt)
     selected_names = [n.strip() for n in response.split(",") if n.strip() in names_list]
+    # Ensure included characters are always in the selection
+    if included_chars:
+        for c in included_chars:
+            if c in names_list and c not in selected_names:
+                selected_names.append(c)
+
     if not selected_names:
         selected_names = random.sample(names_list, min(max_chars, len(names_list)))
+
     return {c["name"]: c for c in characters if c["name"] in selected_names}
 
 def generate_script(topic, title, characters, target_lines=10):
@@ -129,7 +150,7 @@ def generate_script(topic, title, characters, target_lines=10):
         line = line.strip()
         if any(line.startswith(c + ":") for c in character_names):
             lines.append(line)
-        if len(lines) >= target_lines:
+        if len(lines) >= target_lines:  # enforce the requested number of lines
             break
     return lines
 
@@ -145,19 +166,20 @@ def main():
     all_characters = load_characters()
     locations = load_locations()
 
-    location, included_chars, topic = parse_location_and_include(topic, locations)
+    location, included_chars, min_lines, topic = parse_topic_parameters(topic, locations)
+
     if not location:
         location = random.choice(locations)
 
     allowed_names = set(location["characters"])
-    allowed_names.update(included_chars) 
+    allowed_names.update(included_chars)  # force included characters
 
     spinner = Spinner()
     spinner.start()
     try:
-        selected_chars = pick_characters(topic, all_characters, allowed_names=list(allowed_names))
+        selected_chars = pick_characters(topic, all_characters, allowed_names=list(allowed_names), included_chars=included_chars)
         title = generate_title(topic)
-        script_lines = generate_script(topic, title, selected_chars)
+        script_lines = generate_script(topic, title, selected_chars, target_lines=min_lines)
     finally:
         spinner.stop()
 
