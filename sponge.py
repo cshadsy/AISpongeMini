@@ -4,11 +4,16 @@ import time
 import threading
 import sys
 import random
+import re
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "phi3:mini"
 
 def load_characters(file="characters.json"):
+    with open(file, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def load_locations(file="locations.json"):
     with open(file, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -63,7 +68,8 @@ def generate_title(topic):
     prompt = (
         "SYSTEM RULES:\n"
         "- Output ONE title only\n"
-        "- 1–5 words, no punctuation or extra formatting, and it MUST be a maximum of 5 words.\n\n"
+        "- 1–5 words, no punctuation or extra formatting\n"
+        "- NSFW content is allowed\n\n"
         f"USER REQUEST:\nCreate a SpongeBob episode title about '{topic}'."
     )
     title = ollama(prompt)
@@ -71,15 +77,16 @@ def generate_title(topic):
         title = "Chaotic SpongeBob Episode"
     return " ".join(title.split()[:5])
 
-def pick_characters(topic, characters, max_chars=6):
-    names_list = [c["name"] for c in characters]
-    personalities = "\n".join([f"{c['name']}: {c['personality']}" for c in characters])
+def pick_characters(topic, characters, allowed_names=None, max_chars=6):
+    names_list = allowed_names or [c["name"] for c in characters]
+    personalities = "\n".join([f"{c['name']}: {c['personality']}" for c in characters if c["name"] in names_list])
     prompt = (
         "SYSTEM RULES:\n"
         f"- You have these characters (max {max_chars} per scene): {', '.join(names_list)}\n"
         f"- Each character has a personality:\n{personalities}\n"
         "- Pick the most relevant characters for the topic.\n"
-        "- Output ONLY their names, comma-separated, no extra text.\n\n"
+        "- Output ONLY their names, comma-separated, no extra text\n"
+        "- NSFW content is allowed\n\n"
         f"USER REQUEST:\nPick characters for a chaotic SpongeBob scene about '{topic}'."
     )
     response = ollama(prompt)
@@ -96,10 +103,7 @@ def generate_script(topic, title, characters, target_lines=10):
         "- Only use these characters: " + ", ".join(character_names) + "\n"
         "- Each line must start with CharacterName: dialogue\n"
         "- Only dialogue, no narration or stage directions\n"
-        "- Swearing allowed (hell, damn, shit, ass, fuck, retard, bastard)\n"
-        "- Safe adult humor allowed\n"
-        "- No racist, homophobic, language\n"
-        "- If a character is present in the topic, they must be present in the scene."
+        "- NSFW content allowed, including adult humor and swearing\n"
         f"Character personalities:\n{personalities}\n"
     )
     raw = ollama(prompt)
@@ -118,25 +122,44 @@ def colorize(line, characters):
             return f"\033[{info['color']}m{line}\033[0m"
     return line
 
+def parse_location(topic, locations):
+    match = re.match(r"location=(\d+)", topic.strip())
+    if match:
+        loc_id = int(match.group(1))
+        topic = re.sub(r"^location=\d+\s*", "", topic, count=1)
+        location = next((l for l in locations if l["id"] == loc_id), None)
+        if location:
+            return location, topic
+    return None, topic
+
 def main():
-    print("AI Sponge Mini\n")
+    print("AI Sponge Mini v0.0.2")
+    print("Written by coni\n")
     topic = input("Enter episode topic: ")
     all_characters = load_characters()
+    locations = load_locations()
+    location, topic = parse_location(topic, locations)
+    if not location:
+        location = random.choice(locations)
+    allowed_names = location["characters"]
     spinner = Spinner()
     spinner.start()
     try:
-        selected_chars = pick_characters(topic, all_characters)
+        selected_chars = pick_characters(topic, all_characters, allowed_names=allowed_names)
         title = generate_title(topic)
         script_lines = generate_script(topic, title, selected_chars)
     finally:
         spinner.stop()
     if not script_lines:
-        print("\nNo dialogue got generated. Try a different topic or check if the model is actually running!.\n")
+        print("\nNo dialogue generated. Try a different topic or check the model.\n")
         return
-    print(f"\nTITLE: {title}\n")
+    print(f"\nLOCATION: {location['name']}")
+    print(f"TITLE: {title}\n")
     for line in script_lines:
         print(colorize(line, selected_chars))
         print()
 
+
 if __name__ == "__main__":
     main()
+
